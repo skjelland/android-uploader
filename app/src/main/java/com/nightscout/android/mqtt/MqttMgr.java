@@ -1,15 +1,6 @@
 package com.nightscout.android.mqtt;
 
-import android.annotation.TargetApi;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.net.ConnectivityManager;
-import android.os.Build;
-import android.os.PowerManager;
 import android.util.Log;
 
 import com.google.common.collect.Lists;
@@ -19,6 +10,8 @@ import com.nightscout.core.mqtt.MqttMgrObservable;
 import com.nightscout.core.mqtt.MqttMgrObserver;
 import com.nightscout.core.mqtt.MqttPinger;
 import com.nightscout.core.mqtt.MqttPingerObserver;
+import com.nightscout.core.mqtt.MqttTimer;
+import com.nightscout.core.mqtt.MqttTimerObserver;
 
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -29,16 +22,15 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.io.UnsupportedEncodingException;
-import java.util.Date;
 import java.util.List;
 
 
-public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObserver {
+public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObserver, MqttTimerObserver {
     private static final String TAG = MqttMgr.class.getSimpleName();
 
     private List<MqttMgrObserver> observers = Lists.newArrayList();
 
-    private ReconnectReceiver reconnectReceiver;
+//    private ReconnectReceiver reconnectReceiver;
 
     private String mDeviceId;
     //private MqttDefaultFilePersistence mDataStore;
@@ -53,12 +45,10 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
     private String[] mqTopics = null;
     private String lastWill = null;
     private String deviceIDStr =null;
-    private AlarmManager alarmMgr;
-    private Intent reconnectIntent;
-    private PendingIntent reconnectPendingIntent;
     protected boolean initialCallbackSetup = false;
     protected MqttConnectionState state;
     protected MqttPinger pinger;
+    protected MqttTimer timer;
 
 
     public MqttMgr(Context context, String user, String pass, String deviceIDStr) {
@@ -68,19 +58,27 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
         this.pass = pass;
         this.deviceIDStr = deviceIDStr;
         mDeviceId = String.format(Constants.DEVICE_ID_FORMAT,deviceIDStr);
-        alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+//        alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         state = MqttConnectionState.DISCONNECTED;
     }
 
     public void connect(String url, MqttPinger keepAlive){
-        connect(url,null, keepAlive);
+        connect(url,null, keepAlive, timer);
+    }
+
+    public void connect(){
+        connect(null, null, null, null);
     }
 
     public void setPinger(MqttPinger pinger) {
         this.pinger = pinger;
     }
 
-    public void connect(String url, String lwt, MqttPinger keepAlive) {
+    public void setTimer(MqttTimer timer) {
+        this.timer = timer;
+    }
+
+    public void connect(String url, String lwt, MqttPinger keepAlive, MqttTimer reconnectTimer) {
         state= MqttConnectionState.CONNECTING;
         if (user == null || pass == null) {
             Log.e(TAG, "User and/or password is null. Please verify arguments to the constructor");
@@ -88,17 +86,25 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
         }
         setupOpts(lwt);
         // Save the URL for later re-connections
-        mqttUrl = url;
+        if (mqttUrl == null) {
+            mqttUrl = url;
+        }
         mDataStore = new MemoryPersistence();
         try {
             Log.d(TAG, "Connecting to URL: " + url);
-            mClient = new MqttClient(url, mDeviceId, mDataStore);
+            mClient = new MqttClient(mqttUrl, mDeviceId, mDataStore);
             mClient.connect(mOpts);
-            pinger = keepAlive;
+            if (pinger == null) {
+                pinger = keepAlive;
+            }
+            if (timer == null) {
+                timer = reconnectTimer;
+            }
             pinger.setKeepAliveInterval(Constants.KEEPALIVE_INTERVAL);
             pinger.setMqttClient(mClient);
             pinger.start();
             pinger.registerObserver(this);
+            timer.activate();
             state = MqttConnectionState.CONNECTED;
         } catch (MqttException | IllegalArgumentException e) {
             Log.e(TAG, "Error while connecting: ", e);
@@ -117,15 +123,6 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
             mOpts.setWill("/uploader", lastWill.getBytes(), 2, true);
         }
         mOpts.setCleanSession(Constants.MQTT_CLEAN_SESSION);
-    }
-
-    private void setupReconnect(){
-        reconnectReceiver = new ReconnectReceiver();
-        reconnectIntent = new Intent(Constants.RECONNECT_INTENT_FILTER);
-        reconnectIntent.putExtra("device",deviceIDStr);
-        reconnectPendingIntent = PendingIntent.getBroadcast(context, 61, reconnectIntent, 0);
-
-        context.registerReceiver(reconnectReceiver, new IntentFilter(Constants.RECONNECT_INTENT_FILTER));
     }
 
     public void subscribe(String... topics){
@@ -165,13 +162,6 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
             Log.wtf(TAG,"Unable to publish message: "+message+" to "+topic);
             reconnectDelayed();
         }
-    }
-
-    private boolean isOnline() {
-        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        return (cm.getActiveNetworkInfo() != null &&
-                cm.getActiveNetworkInfo().isAvailable() &&
-                cm.getActiveNetworkInfo().isConnected());
     }
 
     public void registerObserver(MqttMgrObserver observer) {
@@ -217,11 +207,7 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
             return;
         }
         if (! mClient.isConnected()) {
-            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-            PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RemoteCGM "+deviceIDStr);
-            wl.acquire();
             reconnectDelayed();
-            wl.release();
         } else {
             Log.wtf(TAG, "Received connection lost but mClient is reporting we're online?!");
         }
@@ -249,18 +235,10 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
         reconnectDelayed(Constants.RECONNECT_DELAY);
     }
 
-    @TargetApi(Build.VERSION_CODES.KITKAT)
-    public void reconnectDelayed(long delay_ms){
-        Log.i(TAG, "Attempting to reconnect again in "+delay_ms/1000+" seconds");
-//        reconnectReceiver = new ReconnectReceiver();
-        reconnectIntent = new Intent(Constants.RECONNECT_INTENT_FILTER);
-        reconnectIntent.putExtra("device",deviceIDStr);
-        reconnectPendingIntent = PendingIntent.getBroadcast(context, 61, reconnectIntent, 0);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
-            alarmMgr.setExact(AlarmManager.RTC_WAKEUP,new Date().getTime()+delay_ms,reconnectPendingIntent);
-        else
-            alarmMgr.set(AlarmManager.RTC_WAKEUP,new Date().getTime()+delay_ms,reconnectPendingIntent);
+//    @TargetApi(Build.VERSION_CODES.KITKAT)
+    public void reconnectDelayed(long delayMs){
+        Log.i(TAG, "Attempting to reconnect again in "+delayMs/1000+" seconds");
+        timer.setTimer(delayMs);
     }
 
     @Override
@@ -269,13 +247,13 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
     }
 
     public boolean reconnect(){
-        if (isOnline()) {
+        if (pinger.isNetworkActive()) {
             state = MqttConnectionState.RECONNECTING;
             Log.d(TAG, "Reconnecting");
-            alarmMgr.cancel(reconnectPendingIntent);
+//            alarmMgr.cancel(reconnectPendingIntent);
             close();
             mClient = null;
-//            connect(mqttUrl);
+            connect();
             // No need to subscribe to anything if we don't have anything to subscribe to.
             if (mqTopics!=null)
                 subscribe(mqTopics);
@@ -297,11 +275,6 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
             Log.e(TAG,"Error disconnecting",e);
         }
         state= MqttConnectionState.DISCONNECTING;
-        if (context != null && reconnectReceiver != null) {
-            context.unregisterReceiver(reconnectReceiver);
-            reconnectReceiver = null;
-        }
-        alarmMgr.cancel(reconnectPendingIntent);
         pinger.stop();
         state = MqttConnectionState.DISCONNECTED;
     }
@@ -314,23 +287,18 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
             if (mClient!=null)
                 mClient.close();
             mClient = null;
+            timer.deactivate();
         } catch (MqttException e) {
             Log.e(TAG,"Exception while closing connection",e);
         }
     }
 
-    protected class ReconnectReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            Log.d(TAG,"Received a broadcast: "+intent.getAction());
-            if (intent.getAction().equals(Constants.RECONNECT_INTENT_FILTER)) {
-                Log.d(TAG,"Received broadcast to reconnect");
-                // Prevent a reconnect if we haven't subscribed to anything.
-                // I suspect this was a race condition where a reconnect somehow triggered before the initial connection completed
-                reconnect();
-            }
-        }
+    @Override
+    public void timerUp() {
+        Log.d(TAG,"Timer is up");
+        reconnect();
     }
+
 
     // TODO honor disable background data setting..
 }

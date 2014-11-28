@@ -9,7 +9,7 @@ import com.nightscout.core.mqtt.Constants;
 import com.nightscout.core.mqtt.MqttPinger;
 
 public class MqttPingerReceiver extends BroadcastReceiver {
-    private static final String TAG = MqttMgr.class.getSimpleName();
+    private static final String TAG = MqttPingerReceiver.class.getSimpleName();
     MqttPinger pinger;
 
     MqttPingerReceiver(MqttPinger pinger){

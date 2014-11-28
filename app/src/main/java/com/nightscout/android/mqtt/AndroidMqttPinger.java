@@ -1,10 +1,12 @@
 package com.nightscout.android.mqtt;
 
+import android.annotation.TargetApi;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
 import android.os.Build;
 import android.util.Log;
 
@@ -99,6 +101,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
         keepAliveInterval = ms;
     }
 
+    @TargetApi(Build.VERSION_CODES.KITKAT)
     @Override
     public void reset() {
         if (! isActive()){
@@ -115,6 +118,14 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
         else
             alarmMgr.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + keepAliveInterval - 3000, pingerPendingIntent);
 
+    }
+
+    @Override
+    public boolean isNetworkActive() {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        return (cm.getActiveNetworkInfo() != null &&
+                cm.getActiveNetworkInfo().isAvailable() &&
+                cm.getActiveNetworkInfo().isConnected());
     }
 
     @Override

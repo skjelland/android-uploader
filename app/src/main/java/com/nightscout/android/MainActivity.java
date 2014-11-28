@@ -29,12 +29,14 @@ import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 import com.nightscout.android.dexcom.SyncingService;
 import com.nightscout.android.mqtt.AndroidMqttPinger;
+import com.nightscout.android.mqtt.AndroidMqttTimer;
 import com.nightscout.android.mqtt.MqttMgr;
 import com.nightscout.android.preferences.AndroidPreferences;
 import com.nightscout.android.settings.SettingsActivity;
 import com.nightscout.core.dexcom.Constants;
 import com.nightscout.core.dexcom.Utils;
 import com.nightscout.core.mqtt.MqttPinger;
+import com.nightscout.core.mqtt.MqttTimer;
 import com.nightscout.core.preferences.NightscoutPreferences;
 
 import org.acra.ACRA;
@@ -198,6 +200,8 @@ public class MainActivity extends Activity {
         if (preferences.isMqttEnabled()) {
             MqttMgr mqttMgr = new MqttMgr(getApplicationContext(), preferences.getMqttUser(), preferences.getMqttPass(), "abc123");
             MqttPinger pinger = new AndroidMqttPinger(getApplicationContext(), 0);
+            MqttTimer timer = new AndroidMqttTimer(getApplicationContext(), 0);
+            mqttMgr.setTimer(timer);
             mqttMgr.connect(preferences.getMqttEndpoint(), pinger);
         }
     }
