@@ -2,10 +2,7 @@ package com.nightscout.android.preferences;
 
 import android.content.SharedPreferences;
 
-import com.google.android.gms.analytics.HitBuilders;
-import com.google.android.gms.analytics.Tracker;
 import com.google.common.collect.Lists;
-import com.nightscout.android.Nightscout;
 import com.nightscout.core.preferences.NightscoutPreferences;
 
 import java.util.List;
@@ -64,5 +61,25 @@ public class AndroidPreferences implements NightscoutPreferences {
     @Override
     public String getMongoDeviceStatusCollection() {
         return preferences.getString(PreferenceKeys.MONGO_DEVICE_STATUS_COLLECTION, "devicestatus");
+    }
+
+    @Override
+    public boolean isMqttEnabled() {
+        return preferences.getBoolean(PreferenceKeys.MQTT_ENABLED, false);
+    }
+
+    @Override
+    public String getMqttEndpoint() {
+        return preferences.getString(PreferenceKeys.MQTT_ENDPOINT, "");
+    }
+
+    @Override
+    public String getMqttUser() {
+        return preferences.getString(PreferenceKeys.MQTT_USER, "");
+    }
+
+    @Override
+    public String getMqttPass() {
+        return preferences.getString(PreferenceKeys.MQTT_PASS, "");
     }
 }

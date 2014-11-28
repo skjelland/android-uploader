@@ -1,4 +1,4 @@
-package com.nightscout.android.mqtt;
+package com.nightscout.core.mqtt;
 
 public enum MqttConnectionState {
     CONNECTING,

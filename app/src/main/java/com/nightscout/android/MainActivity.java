@@ -28,11 +28,13 @@ import com.google.android.gms.analytics.GoogleAnalytics;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 import com.nightscout.android.dexcom.SyncingService;
+import com.nightscout.android.mqtt.AndroidMqttPinger;
+import com.nightscout.android.mqtt.MqttMgr;
 import com.nightscout.android.preferences.AndroidPreferences;
-import com.nightscout.android.preferences.PreferenceKeys;
 import com.nightscout.android.settings.SettingsActivity;
 import com.nightscout.core.dexcom.Constants;
 import com.nightscout.core.dexcom.Utils;
+import com.nightscout.core.mqtt.MqttPinger;
 import com.nightscout.core.preferences.NightscoutPreferences;
 
 import org.acra.ACRA;
@@ -71,6 +73,7 @@ public class MainActivity extends Activity {
     private TextView mTextSGV;
     private TextView mTextTimestamp;
     StatusBarIcons statusBarIcons;
+    MqttMgr mqttMgr;
 
     // Display options
     private float currentUnits = 1;
@@ -191,6 +194,12 @@ public class MainActivity extends Activity {
         if (prefs.getBoolean("cloud_storage_mongodb_enable", false)) {
             mTracker.send(new HitBuilders.EventBuilder("Upload", "Mongo").build());
         }
+        AndroidPreferences preferences = new AndroidPreferences(prefs);
+        if (preferences.isMqttEnabled()) {
+            MqttMgr mqttMgr = new MqttMgr(getApplicationContext(), preferences.getMqttUser(), preferences.getMqttPass(), "abc123");
+            MqttPinger pinger = new AndroidMqttPinger(getApplicationContext(), 0);
+            mqttMgr.connect(preferences.getMqttEndpoint(), pinger);
+        }
     }
 
     @Override
@@ -247,6 +256,10 @@ public class MainActivity extends Activity {
     protected void onStop() {
         super.onStop();
         GoogleAnalytics.getInstance(this).reportActivityStop(this);
+        if (mqttMgr != null) {
+            mqttMgr.disconnect();
+            mqttMgr.close();
+        }
     }
 
     @Override

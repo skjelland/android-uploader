@@ -11,4 +11,8 @@ public final class PreferenceKeys {
     public static final String MONGO_COLLECTION = "cloud_storage_mongodb_collection";
     public static final String MONGO_DEVICE_STATUS_COLLECTION =
             "cloud_storage_mongodb_device_status_collection";
+    public static final String MQTT_ENABLED = "cloud_storage_mqtt_enable";
+    public static final String MQTT_ENDPOINT = "cloud_storage_mqtt_endpoint";
+    public static final String MQTT_USER = "cloud_storage_mqtt_user";
+    public static final String MQTT_PASS = "cloud_storage_mqtt_pass";
 }

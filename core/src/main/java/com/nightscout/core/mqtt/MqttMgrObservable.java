@@ -1,4 +1,4 @@
-package com.nightscout.android.mqtt;
+package com.nightscout.core.mqtt;
 
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 

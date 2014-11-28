@@ -13,4 +13,9 @@ public interface NightscoutPreferences {
     String getMongoClientUri();
     String getMongoCollection();
     String getMongoDeviceStatusCollection();
+    boolean isMqttEnabled();
+    String getMqttEndpoint();
+    String getMqttUser();
+    // TODO: (klee) look into how to securely store this information
+    String getMqttPass();
 }

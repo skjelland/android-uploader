@@ -85,6 +85,26 @@ public class TestPreferences implements NightscoutPreferences {
         return mongoDeviceStatusCollection;
     }
 
+    @Override
+    public boolean isMqttEnabled() {
+        return false;
+    }
+
+    @Override
+    public String getMqttEndpoint() {
+        return null;
+    }
+
+    @Override
+    public String getMqttUser() {
+        return null;
+    }
+
+    @Override
+    public String getMqttPass() {
+        return null;
+    }
+
     public void setMongoDeviceStatusCollection(String mongoDeviceStatusCollection) {
         this.mongoDeviceStatusCollection = mongoDeviceStatusCollection;
     }
