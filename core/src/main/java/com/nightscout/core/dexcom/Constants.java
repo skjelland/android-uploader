@@ -1,5 +1,7 @@
 package com.nightscout.core.dexcom;
 
+import com.nightscout.core.protobuf.Download;
+
 public class Constants {
 
     public final static int NULL = 0;
@@ -121,6 +123,10 @@ public class Constants {
 
         public int getID(){
             return myID;
+        }
+
+        public Download.Direction toProtobuf(){
+            return Download.Direction.values()[myID];
         }
 
     }

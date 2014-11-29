@@ -4,7 +4,6 @@ import com.nightscout.core.dexcom.records.CalRecord;
 import com.nightscout.core.dexcom.records.EGVRecord;
 import com.nightscout.core.dexcom.records.MeterRecord;
 import com.nightscout.core.dexcom.records.SensorRecord;
-
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -27,12 +26,13 @@ public class G4Download extends Download {
     protected GlucoseUnits units;
     protected long systemTime;
     protected long displayTime;
-    protected String name;
+    protected String pwdName;
+    protected String driver;
 
-    private G4Download(DateTime downloadTimestamp, DownloadStatus downloadStatus, int uploaderBattery,
-                      List<EGVRecord> egvRecords, List<MeterRecord> meterRecords,
-                      List<CalRecord> calRecords, List<SensorRecord> sensorRecords,
-                      int receiverBattery, GlucoseUnits units, long sysTime, long dispTime){
+    G4Download(DateTime downloadTimestamp, DownloadStatus downloadStatus, int uploaderBattery,
+               List<EGVRecord> egvRecords, List<MeterRecord> meterRecords,
+               List<CalRecord> calRecords, List<SensorRecord> sensorRecords,
+               int receiverBattery, GlucoseUnits units, long sysTime, long dispTime){
         super(downloadTimestamp,downloadStatus,uploaderBattery);
         this.egvRecords=checkNotNull(egvRecords);
         this.meterRecords=checkNotNull(meterRecords);
@@ -108,6 +108,22 @@ public class G4Download extends Download {
         this.displayTime = displayTime;
     }
 
+    public String getPwdName() {
+        return pwdName;
+    }
+
+    public void setPwdName(String pwdName) {
+        this.pwdName = pwdName;
+    }
+
+    public String getDriver() {
+        return driver;
+    }
+
+    public void setDriver(String driver) {
+        this.driver = driver;
+    }
+
     /**
      * <p>
      * This method creates a serialized representation of this download object using protobuf
@@ -162,84 +178,8 @@ public class G4Download extends Download {
                     .setTimestamp(record.getSystemTimeSeconds());
             builder.addCal(calBuilder);
         }
-        builder.setPatientName(name);
+        builder.setPwdName(pwdName);
         SGV.CookieMonsterG4Download download = builder.build();
         return download.toByteArray();
-    }
-
-
-    public class G4DownloadBuilder {
-        private DateTime downloadTimestamp;
-        private DownloadStatus downloadStatus = DownloadStatus.NONE;
-        private int uploaderBattery;
-        private List<EGVRecord> egvRecords;
-        private List<MeterRecord> meterRecords;
-        private List<CalRecord> calRecords;
-        private List<SensorRecord> sensorRecords;
-        private int receiverBattery;
-        private GlucoseUnits units;
-        private long sysTime;
-        private long dispTime;
-
-        public G4DownloadBuilder setDownloadTimestamp(DateTime downloadTimestamp) {
-            this.downloadTimestamp = downloadTimestamp;
-            return this;
-        }
-
-        public G4DownloadBuilder setDownloadStatus(DownloadStatus status) {
-            this.downloadStatus = status;
-            return this;
-        }
-
-        public G4DownloadBuilder setUploaderBattery(int uploaderBattery) {
-            this.uploaderBattery = uploaderBattery;
-            return this;
-        }
-
-        public G4DownloadBuilder setEgvRecords(List<EGVRecord> egvRecords) {
-            this.egvRecords = egvRecords;
-            return this;
-        }
-
-        public G4DownloadBuilder setMeterRecords(List<MeterRecord> meterRecords) {
-            this.meterRecords = meterRecords;
-            return this;
-        }
-
-        public G4DownloadBuilder setCalRecords(List<CalRecord> calRecords) {
-            this.calRecords = calRecords;
-            return this;
-        }
-
-        public G4DownloadBuilder setSensorRecords(List<SensorRecord> sensorRecords) {
-            this.sensorRecords = sensorRecords;
-            return this;
-        }
-
-        public G4DownloadBuilder setReceiverBattery(int receiverBattery) {
-            this.receiverBattery = receiverBattery;
-            return this;
-        }
-
-        public G4DownloadBuilder setUnits(GlucoseUnits units) {
-            this.units = units;
-            return this;
-        }
-
-        public G4DownloadBuilder setSystemTime(long sysTime) {
-            this.sysTime = sysTime;
-            return this;
-        }
-
-        public G4DownloadBuilder setDisplayTime(long dispTime) {
-            this.dispTime = dispTime;
-            return this;
-        }
-
-        public G4Download createG4Download() {
-            return new G4Download(downloadTimestamp, status, uploaderBattery, egvRecords,
-                    meterRecords,calRecords, sensorRecords, receiverBattery, units, sysTime,
-                    dispTime);
-        }
     }
 }

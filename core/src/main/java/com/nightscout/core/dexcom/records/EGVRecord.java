@@ -1,7 +1,9 @@
 package com.nightscout.core.dexcom.records;
 
+import com.google.common.base.Optional;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.nightscout.core.dexcom.Constants;
-
+import com.nightscout.core.protobuf.Download;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -23,10 +25,14 @@ public class EGVRecord extends GenericTimestampRecord {
         trend = Constants.TREND_ARROW_VALUES.values()[trendValue];
     }
 
-    public EGVRecord(int bGValue,Constants.TREND_ARROW_VALUES trend,Date displayTime, Date systemTime){
+    public EGVRecord(int bGValue, Constants.TREND_ARROW_VALUES trend, Date displayTime, Date systemTime){
         super(displayTime, systemTime);
         this.bGValue=bGValue;
         this.trend=trend;
+    }
+
+    public EGVRecord(int bGValue, Download.Direction trend, long systemTime){
+        super(systemTime);
     }
 
     public int getBGValue() {
@@ -46,5 +52,22 @@ public class EGVRecord extends GenericTimestampRecord {
             e.printStackTrace();
         }
         return obj;
+    }
+
+    public Download.CookieMonsterG4EGV toProtoBuf() {
+        return Download.CookieMonsterG4EGV.newBuilder()
+                .setTimestamp(systemTimeSeconds)
+                .setDirection(trend.toProtobuf())
+                .setSgv(bGValue).build();
+    }
+
+    public Optional<EGVRecord> fromProtoBuf(byte[] byteArray){
+        try {
+            Download.CookieMonsterG4EGV record = Download.CookieMonsterG4EGV.parseFrom(byteArray);
+            return Optional.of(new EGVRecord(record.getSgv(),record.getDirection(),record.getTimestamp()));
+        } catch (InvalidProtocolBufferException e) {
+            e.printStackTrace();
+        }
+        return Optional.absent();
     }
 }

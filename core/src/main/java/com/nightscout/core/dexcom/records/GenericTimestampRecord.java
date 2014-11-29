@@ -1,17 +1,19 @@
 package com.nightscout.core.dexcom.records;
 
+import com.google.common.base.Optional;
 import com.nightscout.core.dexcom.Utils;
+import com.nightscout.core.protobuf.Download;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Date;
 
-public class GenericTimestampRecord {
+abstract public class GenericTimestampRecord implements ProtobufRecord {
 
     protected final int OFFSET_SYS_TIME = 0;
     protected final int OFFSET_DISPLAY_TIME = 4;
     protected Date systemTime;
-    protected int systemTimeSeconds;
+    protected long systemTimeSeconds;
     protected Date displayTime;
 
     public GenericTimestampRecord(byte[] packet) {
@@ -26,19 +28,23 @@ public class GenericTimestampRecord {
         this.systemTime=systemTime;
     }
 
+    public GenericTimestampRecord(long systemTime) {
+        this.systemTimeSeconds = systemTime;
+    }
+
     public Date getSystemTime() {
         return systemTime;
     }
 
-    public int getSystemTimeSeconds() {
+    public long getSystemTimeSeconds() {
         return systemTimeSeconds;
     }
 
     public Date getDisplayTime() {
         return displayTime;
     }
+
     public long getDisplayTimeSeconds() {
         return displayTime.getTime();
     }
-
 }

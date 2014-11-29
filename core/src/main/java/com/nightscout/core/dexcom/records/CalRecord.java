@@ -1,5 +1,8 @@
 package com.nightscout.core.dexcom.records;
 
+import com.google.common.base.Optional;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.nightscout.core.protobuf.Download;
 import org.joda.time.DateTime;
 import org.joda.time.Seconds;
 import org.slf4j.Logger;
@@ -43,6 +46,14 @@ public class CalRecord extends GenericTimestampRecord {
         }
     }
 
+    CalRecord(double slope, double intercept, double scale, long time){
+        super(time);
+        this.systemTimeSeconds = time;
+        this.slope = slope;
+        this.scale = scale;
+        this.intercept = intercept;
+    }
+
     public double getSlope() {
         return slope;
     }
@@ -69,5 +80,27 @@ public class CalRecord extends GenericTimestampRecord {
 
     public CalSubrecord[] getCalSubrecords() {
         return calSubrecords;
+    }
+
+    @Override
+    public Download.CookieMonsterG4Cal toProtoBuf() {
+        return Download.CookieMonsterG4Cal.newBuilder()
+                .setTimestamp(systemTimeSeconds)
+                .setIntercept(intercept)
+                .setSlope(slope)
+                .setScale(scale)
+                .build();
+    }
+
+    @Override
+    public Optional<CalRecord> fromProtoBuf(byte[] byteArray){
+        try {
+            Download.CookieMonsterG4Cal record = Download.CookieMonsterG4Cal.parseFrom(byteArray);
+            return Optional.of(new CalRecord(record.getSlope(),
+                    record.getIntercept(), record.getScale(), record.getTimestamp()));
+        } catch (InvalidProtocolBufferException e) {
+            e.printStackTrace();
+        }
+        return Optional.absent();
     }
 }

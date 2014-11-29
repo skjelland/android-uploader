@@ -1,7 +1,7 @@
 package com.nightscout.android.preferences;
 
+import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
-
 import com.google.common.collect.Lists;
 import com.nightscout.core.preferences.NightscoutPreferences;
 
@@ -81,5 +81,41 @@ public class AndroidPreferences implements NightscoutPreferences {
     @Override
     public String getMqttPass() {
         return preferences.getString(PreferenceKeys.MQTT_PASS, "");
+    }
+
+    @SuppressLint("CommitPrefEdits")
+    public void setLastEgvMqttUpload(long timestamp) {
+        preferences.edit().putLong(PreferenceKeys.MQTT_LAST_EGV_TIME, timestamp).commit();
+    }
+
+    @SuppressLint("CommitPrefEdits")
+    public void setLastSensorMqttUpload(long timestamp) {
+        preferences.edit().putLong(PreferenceKeys.MQTT_LAST_SENSOR_TIME, timestamp).commit();
+    }
+
+    @SuppressLint("CommitPrefEdits")
+    public void setLastCalMqttUpload(long timestamp) {
+        preferences.edit().putLong(PreferenceKeys.MQTT_LAST_CAL_TIME, timestamp).commit();
+    }
+
+    @SuppressLint("CommitPrefEdits")
+    public void setLastMeterMqttUpload(long timestamp) {
+        preferences.edit().putLong(PreferenceKeys.MQTT_LAST_METER_TIME, timestamp).commit();
+    }
+
+    public long getLastEgvMqttUpload() {
+        return preferences.getLong(PreferenceKeys.MQTT_LAST_EGV_TIME, 0);
+    }
+
+    public long getLastSensorMqttUpload() {
+        return preferences.getLong(PreferenceKeys.MQTT_LAST_SENSOR_TIME, 0);
+    }
+
+    public long getLastCalMqttUpload() {
+        return preferences.getLong(PreferenceKeys.MQTT_LAST_CAL_TIME, 0);
+    }
+
+    public long getLastMeterMqttUpload() {
+        return preferences.getLong(PreferenceKeys.MQTT_LAST_METER_TIME, 0);
     }
 }

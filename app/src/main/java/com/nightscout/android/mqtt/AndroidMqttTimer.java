@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.util.Log;
 
 import com.google.common.collect.Lists;
 import com.nightscout.core.mqtt.Constants;
@@ -18,6 +19,7 @@ import java.util.Date;
 import java.util.List;
 
 public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
+    private static final String TAG = AndroidMqttTimer.class.getSimpleName();
     private List<MqttTimerObserver> observers = Lists.newArrayList();
     private MqttTimerReceiver timerReceiver;
     private AlarmManager alarmMgr;
@@ -32,6 +34,7 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
         this.Id = Id;
         this.timerReceiver = new MqttTimerReceiver(observers);
         alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Log.d(TAG, "Creating timer ID#"+Id);
     }
 
     @TargetApi(Build.VERSION_CODES.KITKAT)
@@ -41,14 +44,19 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
         alarmIntent = new Intent(Constants.RECONNECT_INTENT_FILTER);
         alarmIntent.putExtra("device",Id);
         pendingAlarmIntent = PendingIntent.getBroadcast(context, 61+Id, alarmIntent, 0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
-            alarmMgr.setExact(AlarmManager.RTC_WAKEUP,new Date().getTime()+delayMs,pendingAlarmIntent);
-        else
-            alarmMgr.set(AlarmManager.RTC_WAKEUP,new Date().getTime()+delayMs,pendingAlarmIntent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            Log.d(TAG,"Setting KitKat alarm");
+            alarmMgr.setExact(AlarmManager.RTC_WAKEUP, new Date().getTime() + delayMs, pendingAlarmIntent);
+        } else {
+            Log.d(TAG,"Setting pre-KitKat alarm");
+            alarmMgr.set(AlarmManager.RTC_WAKEUP, new Date().getTime() + delayMs, pendingAlarmIntent);
+        }
+        Log.d(TAG,"Created a timer with a delay of "+delayMs+" ms");
     }
 
     @Override
     public void cancel() {
+        Log.d(TAG,"Canceling timer");
         alarmMgr.cancel(pendingAlarmIntent);
     }
 
@@ -57,6 +65,9 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
         if(!active) {
             context.registerReceiver(timerReceiver, new IntentFilter(Constants.RECONNECT_INTENT_FILTER));
             active = true;
+            Log.d(TAG,"Timer activiated");
+        } else {
+            Log.w(TAG, "Timer already activiated");
         }
     }
 
@@ -64,6 +75,10 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
     public void deactivate() {
         if (active) {
             context.unregisterReceiver(timerReceiver);
+            active = false;
+            Log.d(TAG,"Timer deactiviated");
+        } else {
+            Log.w(TAG,"Timer already deactiviated");
         }
     }
 
@@ -74,11 +89,21 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
 
     @Override
     public void registerObserver(MqttTimerObserver observer) {
-        observers.add(observer);
+        if (! observers.contains(observer)) {
+            observers.add(observer);
+            Log.w(TAG,"Observer registered");
+        } else {
+            Log.w(TAG,"Observer already registered");
+        }
     }
 
     @Override
     public void unregisterObserver(MqttTimerObserver observer) {
-        observers.remove(observer);
+        if (observers.contains(observer)) {
+            observers.remove(observer);
+            Log.w(TAG,"Observer unregistered");
+        } else {
+            Log.w(TAG,"Observer not registered");
+        }
     }
 }

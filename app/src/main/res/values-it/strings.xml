@@ -46,7 +46,7 @@
     <string name="pref_title_mqtt_endpoint">URI</string>
     <string name="pref_dialog_mqtt_endpoint">Enter MQTT URI"</string>
     <string name="pref_message_mqtt_endpoint">Replace example values in {}\'s with your correct values</string>
-    <string name="pref_default_mqtt_endpoint">tcp://{host}.cloudmqtt.com:{11111}</string>
+    <string name="pref_default_mqtt_endpoint">ssl://{host}.cloudmqtt.com:{11111}</string>
 
     <string name="pref_title_mqtt_user">MQTT user name</string>
     <string name="pref_dialog_mqtt_user">Enter mqtt user name</string>

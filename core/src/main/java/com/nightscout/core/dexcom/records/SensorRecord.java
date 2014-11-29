@@ -1,12 +1,16 @@
 package com.nightscout.core.dexcom.records;
 
+import com.google.common.base.Optional;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.nightscout.core.protobuf.Download;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public class SensorRecord extends GenericTimestampRecord {
 
-    private int unfiltered;
-    private int filtered;
+    private long unfiltered;
+    private long filtered;
     private int rssi;
     private int OFFSET_UNFILTERED = 8;
     private int OFFSET_FILTERED = 12;
@@ -19,6 +23,13 @@ public class SensorRecord extends GenericTimestampRecord {
         rssi = ByteBuffer.wrap(packet).order(ByteOrder.LITTLE_ENDIAN).getShort(OFFSET_RSSI);
     }
 
+    public SensorRecord(long unfiltered, long filtered, int rssi, long time){
+        super(time);
+        this.unfiltered = unfiltered;
+        this.filtered = filtered;
+        this.rssi = rssi;
+    }
+
     public long getUnfiltered() {
         return unfiltered;
     }
@@ -29,5 +40,26 @@ public class SensorRecord extends GenericTimestampRecord {
 
     public int getRssi() {
         return rssi;
+    }
+
+    @Override
+    public Download.CookieMonsterG4Sensor toProtoBuf() {
+        return Download.CookieMonsterG4Sensor.newBuilder()
+                .setTimestamp(systemTimeSeconds)
+                .setFiltered(filtered)
+                .setUnfiltered(unfiltered)
+                .setRssi(rssi)
+                .build();
+    }
+
+    @Override
+    public Optional<SensorRecord> fromProtoBuf(byte[] byteArray){
+        try {
+            Download.CookieMonsterG4Sensor record = Download.CookieMonsterG4Sensor.parseFrom(byteArray);
+            return Optional.of(new SensorRecord(record.getUnfiltered(), record.getFiltered(), record.getRssi(), record.getTimestamp()));
+        } catch (InvalidProtocolBufferException e) {
+            e.printStackTrace();
+        }
+        return Optional.absent();
     }
 }

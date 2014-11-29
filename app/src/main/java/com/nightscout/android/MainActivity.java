@@ -3,12 +3,7 @@ package com.nightscout.android;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.SharedPreferences;
+import android.content.*;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -23,10 +18,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.TextView;
-
 import com.google.android.gms.analytics.GoogleAnalytics;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.nightscout.android.dexcom.SyncingService;
 import com.nightscout.android.mqtt.AndroidMqttPinger;
 import com.nightscout.android.mqtt.AndroidMqttTimer;
@@ -38,7 +33,7 @@ import com.nightscout.core.dexcom.Utils;
 import com.nightscout.core.mqtt.MqttPinger;
 import com.nightscout.core.mqtt.MqttTimer;
 import com.nightscout.core.preferences.NightscoutPreferences;
-
+import com.nightscout.core.protobuf.Download;
 import org.acra.ACRA;
 import org.acra.ACRAConfiguration;
 import org.acra.ACRAConfigurationException;
@@ -75,7 +70,7 @@ public class MainActivity extends Activity {
     private TextView mTextSGV;
     private TextView mTextTimestamp;
     StatusBarIcons statusBarIcons;
-    MqttMgr mqttMgr;
+    protected MqttMgr mqttMgr;
 
     // Display options
     private float currentUnits = 1;
@@ -198,11 +193,13 @@ public class MainActivity extends Activity {
         }
         AndroidPreferences preferences = new AndroidPreferences(prefs);
         if (preferences.isMqttEnabled()) {
-            MqttMgr mqttMgr = new MqttMgr(getApplicationContext(), preferences.getMqttUser(), preferences.getMqttPass(), "abc123");
-            MqttPinger pinger = new AndroidMqttPinger(getApplicationContext(), 0);
-            MqttTimer timer = new AndroidMqttTimer(getApplicationContext(), 0);
-            mqttMgr.setTimer(timer);
-            mqttMgr.connect(preferences.getMqttEndpoint(), pinger);
+            if (!preferences.getMqttUser().equals("") && !preferences.getMqttPass().equals("") &&
+                    !preferences.getMqttEndpoint().equals("")) {
+                mqttMgr = new MqttMgr(preferences.getMqttUser(), preferences.getMqttPass(), "abc123");
+                MqttPinger pinger = new AndroidMqttPinger(getApplicationContext(), 0);
+                MqttTimer timer = new AndroidMqttTimer(getApplicationContext(), 0);
+                mqttMgr.connect(preferences.getMqttEndpoint(), pinger, timer);
+            }
         }
     }
 
@@ -254,16 +251,16 @@ public class MainActivity extends Activity {
         super.onDestroy();
         unregisterReceiver(mCGMStatusReceiver);
         unregisterReceiver(mDeviceStatusReceiver);
+        if (mqttMgr != null) {
+            mqttMgr.disconnect();
+            mqttMgr.close();
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         GoogleAnalytics.getInstance(this).reportActivityStop(this);
-        if (mqttMgr != null) {
-            mqttMgr.disconnect();
-            mqttMgr.close();
-        }
     }
 
     @Override
@@ -315,6 +312,22 @@ public class MainActivity extends Activity {
             receiverOffsetFromUploader = new Date().getTime()-responseDisplayTime;
             int rcvrBat = intent.getIntExtra(SyncingService.RESPONSE_BAT, -1);
             String json = intent.getStringExtra(SyncingService.RESPONSE_JSON);
+            byte[] proto = intent.getByteArrayExtra(SyncingService.RESPONSE_PROTO);
+            if (proto != null) {
+                try {
+//                    Log.d(TAG,"Protobuf: "+proto);
+                    Download.CookieMonsterG4Download download = Download.CookieMonsterG4Download.parseFrom(proto);
+                    if (mqttMgr == null)
+                        Log.wtf(TAG,"NULL!!!!!");
+                    if (mqttMgr != null ) {
+                        mqttMgr.publish(proto, "/downloads/protobuf");
+                    } else {
+                        Log.e(TAG,"Not publishing for some reason");
+                    }
+                } catch (InvalidProtocolBufferException e) {
+                    e.printStackTrace();
+                }
+            }
 
             String responseSGVStr = getSGVStringByUnit(responseSGV,trend);
 

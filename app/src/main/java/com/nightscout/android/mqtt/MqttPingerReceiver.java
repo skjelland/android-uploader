@@ -14,6 +14,7 @@ public class MqttPingerReceiver extends BroadcastReceiver {
 
     MqttPingerReceiver(MqttPinger pinger){
         this.pinger = pinger;
+        Log.d(TAG,"Pinger receiver created");
     }
 
     @Override

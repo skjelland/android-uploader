@@ -9,13 +9,11 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.os.Build;
 import android.util.Log;
-
 import com.google.common.collect.Lists;
 import com.nightscout.core.mqtt.Constants;
 import com.nightscout.core.mqtt.MqttPinger;
 import com.nightscout.core.mqtt.MqttPingerObservable;
 import com.nightscout.core.mqtt.MqttPingerObserver;
-
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
@@ -42,9 +40,11 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
         this.instanceId = instanceId;
         alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         observers = Lists.newArrayList();
+        Log.d(TAG,"Creating MQTT pinger");
     }
 
     public void setMqttClient(MqttClient mqttClient) {
+        Log.d(TAG,"Setting mqtt client");
         this.mqttClient = mqttClient;
     }
 
@@ -55,6 +55,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
     @Override
     public void ping() {
         if (! isActive()){
+            Log.d(TAG, "Can't ping because connection is not active");
             return;
         }
         Log.d(TAG, "Sending keepalive to " + mqttClient.getServerURI() + " deviceID=>" + "connection_"+instanceId);
@@ -64,8 +65,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
             mqttClient.publish(String.format(Locale.US, keepAliveTopic, "connection_"+instanceId),message);
             reset();
         } catch (MqttException e) {
-            Log.wtf(TAG,"Exception during ping",e);
-            Log.wtf(TAG,"Reason code:"+e.getReasonCode());
+            Log.wtf(TAG,"Exception during ping. Reason code:"+e.getReasonCode()+" Message: "+e.getMessage());
             for (MqttPingerObserver observer:observers){
                 observer.onFailedPing();
             }
@@ -79,6 +79,9 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
             context.registerReceiver(pingerReceiver, new IntentFilter(Constants.KEEPALIVE_INTENT_FILTER));
             active = true;
             ping();
+            Log.d(TAG, "Pinger started");
+        } else {
+            Log.d(TAG, "Can't start pinger because it is already active");
         }
     }
 
@@ -88,6 +91,9 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
             context.unregisterReceiver(pingerReceiver);
             active = false;
             alarmMgr.cancel(pingerPendingIntent);
+            Log.d(TAG, "Pinger stopped");
+        } else {
+            Log.d(TAG,"Can't stop pinger because it is not active");
         }
     }
 
@@ -105,18 +111,21 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
     @Override
     public void reset() {
         if (! isActive()){
+            Log.d(TAG,"Can't reset pinger because it is not active");
             return;
         }
-        Log.d(TAG,"Canceling previous alarm");
         alarmMgr.cancel(pingerPendingIntent);
         Log.d(TAG,"Setting next keep alive to trigger in "+(Constants.KEEPALIVE_INTERVAL-3000)/1000+" seconds");
         pingerIntent = new Intent(Constants.KEEPALIVE_INTENT_FILTER);
         pingerIntent.putExtra("device", instanceId);
         pingerPendingIntent = PendingIntent.getBroadcast(context, 61, pingerIntent, 0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             alarmMgr.setExact(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + keepAliveInterval - 3000, pingerPendingIntent);
-        else
+            Log.d(TAG,"KitKat alarm set");
+        } else {
             alarmMgr.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + keepAliveInterval - 3000, pingerPendingIntent);
+            Log.d(TAG,"Pre-KitKat alarm set");
+        }
 
     }
 
@@ -130,11 +139,23 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
 
     @Override
     public void registerObserver(MqttPingerObserver observer) {
-        observers.add(observer);
+        if (!observers.contains(observer)) {
+            Log.d(TAG,"Registering observer");
+            observers.add(observer);
+        } else {
+            Log.d(TAG, "Observer already registered");
+        }
     }
 
     @Override
     public void unregisterObserver(MqttPingerObserver observer) {
-        observers.remove(observer);
+        if (! observers.contains(observer)) {
+            Log.d(TAG,"Unregistering observer");
+            observers.remove(observer);
+        } else {
+            Log.d(TAG, "Observer is not registered");
+        }
     }
+
+    // TODO(klee): honor disable background data setting..
 }

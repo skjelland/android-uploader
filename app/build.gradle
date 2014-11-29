@@ -19,6 +19,8 @@ android {
         applicationId "com.nightscout.android"
         minSdkVersion 12
         targetSdkVersion 12
+        versionCode  16
+        versionName  "0.2.0-dev"
     }
 
     buildTypes {
@@ -148,7 +150,8 @@ task jacocoTestReport(type:JacocoReport, dependsOn: "testDebug") {
                        '**/R$*.class',
                        '**/*$ViewInjector*.*',
                        '**/BuildConfig.*',
-                       '**/Manifest*.*']
+                       '**/Manifest*.*',
+                       '**/USB*']
     )
 
     additionalSourceDirs = files(coverageSourceDirs)

@@ -2,7 +2,6 @@ package com.nightscout.android.upload;
 
 import android.content.Context;
 import android.util.Log;
-
 import com.google.common.collect.Lists;
 import com.mongodb.MongoClientURI;
 import com.nightscout.android.MainActivity;
@@ -51,6 +50,10 @@ public class Uploader {
             context.sendBroadcast(ToastReceiver.createIntent(context, R.string.unknown_mongo_host));
             return false;
         } catch (NullPointerException e) {
+            Log.e(LOG_TAG, "Error creating mongo client uri for null value.", e);
+            context.sendBroadcast(ToastReceiver.createIntent(context, R.string.unknown_mongo_host));
+            return false;
+        } catch (StringIndexOutOfBoundsException e){
             Log.e(LOG_TAG, "Error creating mongo client uri for null value.", e);
             context.sendBroadcast(ToastReceiver.createIntent(context, R.string.unknown_mongo_host));
             return false;

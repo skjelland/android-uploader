@@ -1,16 +1,16 @@
 package com.nightscout.core.dexcom.records;
 
+import com.google.common.base.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
-import java.io.StringReader;
-import java.util.Arrays;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
+import java.util.Arrays;
 
 public class GenericXMLRecord extends GenericTimestampRecord {
     protected final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -42,5 +42,15 @@ public class GenericXMLRecord extends GenericTimestampRecord {
     // example: String sn = getXmlElement().getAttribute("SerialNumber");
     public Element getXmlElement() {
         return xmlElement;
+    }
+
+    @Override
+    public <T> T toProtoBuf() {
+        return null;
+    }
+
+    @Override
+    public Optional<GenericXMLRecord> fromProtoBuf(byte[] protoArray) {
+        return null;
     }
 }
