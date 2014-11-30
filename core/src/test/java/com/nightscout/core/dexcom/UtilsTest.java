@@ -1,7 +1,6 @@
 package com.nightscout.core.dexcom;
 
 import com.google.common.primitives.UnsignedBytes;
-
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Period;
@@ -79,7 +78,7 @@ public class UtilsTest {
     public void testGetTimeAgoString_Multiple() {
         DateTime now = new DateTime();
         assertThat(Utils.getTimeAgoString(new Period(now,
-                        now.plusSeconds(3).plusDays(1).plusMonths(1))),
+                        now.plusMonths(1).plusDays(1).plusSeconds(3))),
                 is("3 seconds, 1 days, and 1 months ago"));
     }
 
