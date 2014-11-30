@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
 import android.util.Log;
-
 import com.google.common.collect.Lists;
 import com.nightscout.core.mqtt.Constants;
 import com.nightscout.core.mqtt.MqttTimer;
@@ -65,7 +64,7 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
         if(!active) {
             context.registerReceiver(timerReceiver, new IntentFilter(Constants.RECONNECT_INTENT_FILTER));
             active = true;
-            Log.d(TAG,"Timer activiated");
+            Log.i(TAG,"Reconnect timer activiated");
         } else {
             Log.w(TAG, "Timer already activiated");
         }
@@ -76,7 +75,7 @@ public class AndroidMqttTimer implements MqttTimer, MqttTimerObservable{
         if (active) {
             context.unregisterReceiver(timerReceiver);
             active = false;
-            Log.d(TAG,"Timer deactiviated");
+            Log.i(TAG,"Reconnect timer deactiviated");
         } else {
             Log.w(TAG,"Timer already deactiviated");
         }

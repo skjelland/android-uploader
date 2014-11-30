@@ -183,10 +183,8 @@ public class SyncingService extends IntentService {
                 String iso8601Str = fmt.print(dt);
 
                 Download.CookieMonsterG4Download.Builder builder = Download.CookieMonsterG4Download.newBuilder();
-                builder.setPwdName("test")
-                        .setDownloadTimestamp(iso8601Str)
+                builder.setDownloadTimestamp(iso8601Str)
                         .setDownloadStatus(Download.DownloadStatus.SUCCESS)
-                        .setDriver("DexcomG4v1")
                         .setReceiverBattery(batLevel)
                         .setUploaderBattery(MainActivity.batLevel)
                         .setUnits(Download.Unit.MGDL);
@@ -212,6 +210,7 @@ public class SyncingService extends IntentService {
                         lastRecord = aRecord.getSystemTimeSeconds();
                     }
                 }
+                // FIXME (klee) these values should be stored only after we are sure the message has been delivered.
                 if (lastRecord != 0){
                     ((AndroidPreferences) preferences).setLastMeterMqttUpload(lastRecord);
                 }

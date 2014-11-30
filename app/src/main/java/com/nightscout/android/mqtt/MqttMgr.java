@@ -8,9 +8,6 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.util.List;
 
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
-
 
 public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObserver, MqttTimerObserver {
 //    protected static final Logger log = LoggerFactory.getLogger(MqttMgr.class);
@@ -66,6 +63,7 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
 
     public void connect(String url, String lwt, MqttPinger keepAlive, MqttTimer reconnectTimer) {
         state = MqttConnectionState.CONNECTING;
+        Log.i(TAG, "Connecting to URL: " + url);
         if (user == null || pass == null) {
             Log.e(TAG, "User and/or password is null. Please verify arguments to the constructor");
             return;
@@ -77,7 +75,6 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
         }
         mDataStore = new MemoryPersistence();
         try {
-            Log.d(TAG, "Connecting to URL: " + mqttUrl);
             mClient = new MqttClient(mqttUrl, mDeviceId, mDataStore);
             mClient.connect(mOpts);
             if (pinger == null) {
@@ -90,14 +87,20 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
             pinger.setMqttClient(mClient);
             pinger.start();
             pinger.registerObserver(this);
+            pinger.reset();
             timer.activate();
+            ((AndroidMqttTimer) timer).registerObserver(this);
             state = MqttConnectionState.CONNECTED;
-        } catch (MqttException | IllegalArgumentException e) {
+        } catch (MqttException e) {
+            Log.e(TAG, "Error while connecting: ", e);
+            reconnectDelayed(60000L);
+        } catch (IllegalArgumentException e){
             Log.e(TAG, "Error while connecting: ", e);
         }
     }
 
     private void setupOpts(String lwt){
+        Log.i(TAG,"Setting up options");
         if (lwt != null)
             lastWill = lwt;
         mOpts = new MqttConnectOptions();
@@ -137,22 +140,31 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
     }
 
     public void publish(byte[] message, String topic){
-        Log.d(TAG, "Publishing " + message + " to " + topic);
+        Log.d(TAG, "Publishing message (size = " + message.length + ") to " + topic);
         try {
-            mClient.publish(topic,message,1,true);
+            mClient.publish(topic, message, 1, true);
+            pinger.reset();
         } catch (MqttException e) {
-            Log.w(TAG, "Unable to publish message to " + topic);
+            Log.e(TAG, "Unable to publish message to " + topic + ". Reason code: " + e.getReasonCode() + " Message: " + e.getMessage());
             reconnectDelayed();
         }
     }
 
     public void registerObserver(MqttMgrObserver observer) {
-        observers.add(observer);
+        if (!observers.contains(observer)) {
+            observers.add(observer);
+        }
         Log.d(TAG, "Number of registered observers: " + observers.size());
     }
 
     public void unregisterObserver(MqttMgrObserver observer) {
-        observers.remove(observer);
+        if (observers.contains(observer)) {
+            observers.remove(observer);
+        }
+    }
+
+    public int getNumberOfObservers(){
+        return observers.size();
     }
 
     public void notifyObservers(String topic, MqttMessage message) {
@@ -178,12 +190,12 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
 
     @Override
     public void connectionLost(Throwable throwable) {
+        Log.w(TAG, "Connection lost");
         if (state!= MqttConnectionState.CONNECTED) {
             Log.d(TAG, "Current state is not connected so ignoring this since we don't care");
             return;
         }
         notifyDisconnect();
-        Log.w(TAG, "The connection was lost");
         if (mqttUrl==null || mqTopics==null){
             Log.e(TAG, "Somehow lost the connection and mqttUrl and/or mqTopics have not been set. Make sure to use connect() and subscribe() methods of this class");
             return;
@@ -224,15 +236,16 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
 
     @Override
     public boolean onFailedPing() {
-        return reconnect();
+        Log.w(TAG,"Ping failed");
+        reconnectDelayed();
+        return true;
     }
 
     public boolean reconnect(){
         if (pinger.isNetworkActive()) {
             state = MqttConnectionState.RECONNECTING;
-            Log.d(TAG, "Reconnecting");
+            Log.i(TAG, "Reconnecting");
             close();
-            mClient = null;
             connect();
             // No need to subscribe to anything if we don't have anything to subscribe to.
             if (mqTopics!=null)
@@ -245,6 +258,7 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
     }
 
     public void disconnect(){
+        Log.i(TAG,"Disconnecting");
         if (state== MqttConnectionState.DISCONNECTING || state == MqttConnectionState.DISCONNECTED)
             return;
         try {
@@ -258,8 +272,8 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
     }
 
     public void close(){
+        Log.i(TAG,"Closing");
         try {
-            Log.i(TAG, "Attempting to close the MQTTMgr");
             if (state == MqttConnectionState.CONNECTED)
                 disconnect();
             if (mClient!=null)
@@ -274,7 +288,7 @@ public class MqttMgr implements MqttCallback, MqttMgrObservable, MqttPingerObser
 
     @Override
     public void timerUp() {
-        Log.d(TAG, "Timer is up");
+        Log.d(TAG, "Reconnect timer is up");
         reconnect();
     }
 }

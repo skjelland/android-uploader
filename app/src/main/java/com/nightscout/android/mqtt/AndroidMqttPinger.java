@@ -54,6 +54,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
 
     @Override
     public void ping() {
+        Log.i(TAG,"Ping");
         if (! isActive()){
             Log.d(TAG, "Can't ping because connection is not active");
             return;
@@ -62,7 +63,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
         MqttMessage message = new MqttMessage(Constants.MQTT_KEEP_ALIVE_MESSAGE);
         message.setQos(Constants.MQTT_KEEP_ALIVE_QOS);
         try {
-            mqttClient.publish(String.format(Locale.US, keepAliveTopic, "connection_"+instanceId),message);
+            mqttClient.publish(String.format(Locale.US, Constants.MQTT_KEEP_ALIVE_TOPIC_FORMAT, mqttClient.getClientId()), message);
             reset();
         } catch (MqttException e) {
             Log.wtf(TAG,"Exception during ping. Reason code:"+e.getReasonCode()+" Message: "+e.getMessage());
@@ -74,19 +75,21 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
 
     @Override
     public void start() {
+        Log.i(TAG,"Starting ping");
         if (! isActive()) {
             pingerReceiver = new MqttPingerReceiver(this);
             context.registerReceiver(pingerReceiver, new IntentFilter(Constants.KEEPALIVE_INTENT_FILTER));
             active = true;
-            ping();
+            reset();
             Log.d(TAG, "Pinger started");
         } else {
-            Log.d(TAG, "Can't start pinger because it is already active");
+            Log.w(TAG, "Can't start pinger because it is already active");
         }
     }
 
     @Override
     public void stop() {
+        Log.i(TAG,"Stopping ping");
         if (isActive()) {
             context.unregisterReceiver(pingerReceiver);
             active = false;
@@ -110,6 +113,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
     @TargetApi(Build.VERSION_CODES.KITKAT)
     @Override
     public void reset() {
+//        Log.i(TAG,"Resetting ping timer");
         if (! isActive()){
             Log.d(TAG,"Can't reset pinger because it is not active");
             return;
@@ -140,7 +144,7 @@ public class AndroidMqttPinger implements MqttPinger, MqttPingerObservable {
     @Override
     public void registerObserver(MqttPingerObserver observer) {
         if (!observers.contains(observer)) {
-            Log.d(TAG,"Registering observer");
+            Log.i(TAG,"Registering observer");
             observers.add(observer);
         } else {
             Log.d(TAG, "Observer already registered");

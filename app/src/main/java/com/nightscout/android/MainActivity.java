@@ -21,7 +21,6 @@ import android.widget.TextView;
 import com.google.android.gms.analytics.GoogleAnalytics;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.nightscout.android.dexcom.SyncingService;
 import com.nightscout.android.mqtt.AndroidMqttPinger;
 import com.nightscout.android.mqtt.AndroidMqttTimer;
@@ -33,7 +32,6 @@ import com.nightscout.core.dexcom.Utils;
 import com.nightscout.core.mqtt.MqttPinger;
 import com.nightscout.core.mqtt.MqttTimer;
 import com.nightscout.core.preferences.NightscoutPreferences;
-import com.nightscout.core.protobuf.Download;
 import org.acra.ACRA;
 import org.acra.ACRAConfiguration;
 import org.acra.ACRAConfigurationException;
@@ -314,18 +312,10 @@ public class MainActivity extends Activity {
             String json = intent.getStringExtra(SyncingService.RESPONSE_JSON);
             byte[] proto = intent.getByteArrayExtra(SyncingService.RESPONSE_PROTO);
             if (proto != null) {
-                try {
-//                    Log.d(TAG,"Protobuf: "+proto);
-                    Download.CookieMonsterG4Download download = Download.CookieMonsterG4Download.parseFrom(proto);
-                    if (mqttMgr == null)
-                        Log.wtf(TAG,"NULL!!!!!");
-                    if (mqttMgr != null ) {
-                        mqttMgr.publish(proto, "/downloads/protobuf");
-                    } else {
-                        Log.e(TAG,"Not publishing for some reason");
-                    }
-                } catch (InvalidProtocolBufferException e) {
-                    e.printStackTrace();
+                if (mqttMgr != null ) {
+                    mqttMgr.publish(proto, "/downloads/protobuf");
+                } else {
+                    Log.e(TAG,"Not publishing for some reason");
                 }
             }
 
