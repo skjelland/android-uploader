@@ -3,6 +3,7 @@ package com.nightscout.android;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Fragment;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -13,11 +14,13 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
-import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.ImageView;
@@ -30,9 +33,11 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.nightscout.android.dexcom.SyncingService;
-import com.nightscout.android.preferences.AndroidPreferences;
+import com.nightscout.android.exceptions.Reporter;
+import com.nightscout.android.preferences.PreferenceKeys;
 import com.nightscout.android.preferences.PreferencesValidator;
 import com.nightscout.android.settings.SettingsActivity;
+import com.nightscout.android.ui.AppContainer;
 import com.nightscout.android.wearables.Pebble;
 import com.nightscout.core.dexcom.TrendArrow;
 import com.nightscout.core.dexcom.Utils;
@@ -41,28 +46,29 @@ import com.nightscout.core.preferences.NightscoutPreferences;
 import com.nightscout.core.utils.GlucoseReading;
 import com.nightscout.core.utils.RestUriUtils;
 
-import org.acra.ACRA;
-import org.acra.ACRAConfiguration;
-import org.acra.ACRAConfigurationException;
-import org.acra.ReportingInteractionMode;
 import org.joda.time.DateTime;
 import org.joda.time.Minutes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
+
+import javax.inject.Inject;
+
+import butterknife.ButterKnife;
+import butterknife.InjectView;
 
 import static com.nightscout.core.dexcom.SpecialValue.getEGVSpecialValue;
 import static com.nightscout.core.dexcom.SpecialValue.isSpecialValue;
 import static org.joda.time.Duration.standardMinutes;
 
 public class MainActivity extends Activity {
-    private static final String TAG = MainActivity.class.getSimpleName();
+    private static final Logger log = LoggerFactory.getLogger(MainActivity.class);
 
     // Receivers
     private CGMStatusReceiver mCGMStatusReceiver;
-
     private ToastReceiver toastReceiver;
 
     // Member components
@@ -72,15 +78,18 @@ public class MainActivity extends Activity {
     private long lastRecordTime = -1;
     private long receiverOffsetFromUploader = 0;
 
-    private NightscoutPreferences preferences;
+    @Inject NightscoutPreferences preferences;
+    @Inject AppContainer appContainer;
+    @Inject Reporter reporter;
 
     // Analytics mTracker
     private Tracker mTracker;
 
     // UI components
-    private WebView mWebView;
-    private TextView mTextSGV;
-    private TextView mTextTimestamp;
+
+    @InjectView(R.id.webView) WebView mWebView;
+    @InjectView(R.id.sgValue) TextView mTextSGV;
+    @InjectView(R.id.timeAgo) TextView mTextTimestamp;
     private StatusBarIcons statusBarIcons;
     private Pebble pebble;
 
@@ -91,15 +100,20 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "OnCreate called.");
+        log.debug("OnCreate called.");
 
-        preferences = new AndroidPreferences(getApplicationContext());
+        Nightscout app = Nightscout.get(this);
+        app.inject(this);
+        reporter.initialize();
+
+        ViewGroup group = appContainer.get(this);
+        getLayoutInflater().inflate(R.layout.activity_main, group);
+
+        ButterKnife.inject(this);
+
         migrateToNewStyleRestUris();
         ensureSavedUrisAreValid();
         ensureIUnderstandDialogDisplayed();
-
-        // Add timezone ID to ACRA report
-        ACRA.getErrorReporter().putCustomData("timezone", TimeZone.getDefault().getID());
 
         mTracker = ((Nightscout) getApplicationContext()).getTracker();
 
@@ -123,13 +137,8 @@ public class MainActivity extends Activity {
         toastFilter.addCategory(Intent.CATEGORY_DEFAULT);
         registerReceiver(toastReceiver, toastFilter);
 
-        // Setup UI components
-        setContentView(R.layout.activity_main);
-        mTextSGV = (TextView) findViewById(R.id.sgValue);
         mTextSGV.setTag(R.string.display_sgv, -1);
         mTextSGV.setTag(R.string.display_trend, 0);
-        mTextTimestamp = (TextView) findViewById(R.id.timeAgo);
-        mWebView = (WebView) findViewById(R.id.webView);
         mWebView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
@@ -142,14 +151,15 @@ public class MainActivity extends Activity {
         mWebView.setHorizontalScrollBarEnabled(false);
         mWebView.setBackgroundColor(0);
         mWebView.loadUrl("file:///android_asset/index.html");
-        statusBarIcons = new StatusBarIcons();
+
+        statusBarIcons = (StatusBarIcons) getFragmentManager().findFragmentById(R.id.iconLayout);
 
         // If app started due to android.hardware.usb.action.USB_DEVICE_ATTACHED intent, start syncing
         Intent startIntent = getIntent();
         String action = startIntent.getAction();
         if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action) || SyncingService.isG4Connected(getApplicationContext())) {
             statusBarIcons.setUSB(true);
-            Log.d(TAG, "Starting syncing in OnCreate...");
+            log.debug("Starting syncing in OnCreate...");
             SyncingService.startActionSingleSync(mContext, SyncingService.MIN_SYNC_PAGES);
         } else {
             // reset the top icons to their default state
@@ -234,7 +244,6 @@ public class MainActivity extends Activity {
 
     private void ensureIUnderstandDialogDisplayed() {
         if (!preferences.getIUnderstand()) {
-            final Activity activity = this;
             // Prompt user to ask to donate data to research
             AlertDialog.Builder dataDialog = new AlertDialog.Builder(this)
                     .setCancelable(false)
@@ -259,7 +268,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        Log.d(TAG, "onPaused called.");
+        log.debug("onPaused called.");
         mWebView.pauseTimers();
         mWebView.onPause();
         mHandler.removeCallbacks(updateTimeAgo);
@@ -272,12 +281,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d(TAG, "onResumed called.");
+        log.debug("onResumed called.");
         mWebView.onResume();
         mWebView.resumeTimers();
 
         // Set and deal with mmol/L<->mg/dL conversions
-        Log.d(TAG, "display_options_units: " + preferences.getPreferredUnits().name());
+        log.debug("display_options_units: " + preferences.getPreferredUnits().name());
         pebble.config(preferences.getPwdName(), preferences.getPreferredUnits());
         int sgv = (Integer) mTextSGV.getTag(R.string.display_sgv);
 
@@ -305,7 +314,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        Log.d(TAG, "onDestroy called.");
+        log.debug("onDestroy called.");
         super.onDestroy();
         unregisterReceiver(mCGMStatusReceiver);
         unregisterReceiver(mDeviceStatusReceiver);
@@ -387,8 +396,8 @@ public class MainActivity extends Activity {
             mTextSGV.setTag(R.string.display_trend, trend.getID());
 
             String timeAgoStr = "---";
-            Log.d(TAG, "Date: " + new Date().getTime());
-            Log.d(TAG, "Response SGV Timestamp: " + responseSGVTimestamp);
+            log.debug("Date: " + new Date().getTime());
+            log.debug("Response SGV Timestamp: " + responseSGVTimestamp);
             if (responseSGVTimestamp > 0) {
                 timeAgoStr = Utils.getTimeString(new Date().getTime() - responseSGVTimestamp);
             }
@@ -399,18 +408,18 @@ public class MainActivity extends Activity {
             long nextUploadTime = standardMinutes(5).getMillis();
 
             if (responseNextUploadTime > nextUploadTime) {
-                Log.d(TAG, "Receiver's time is less than current record time, possible time change.");
+                log.debug("Receiver's time is less than current record time, possible time change.");
                 mTracker.send(new HitBuilders.EventBuilder("Main", "Time change").build());
             } else if (responseNextUploadTime > 0) {
-                Log.d(TAG, "Setting next upload time to: " + responseNextUploadTime);
+                log.debug("Setting next upload time to {}", responseNextUploadTime);
                 nextUploadTime = responseNextUploadTime;
             } else {
-                Log.d(TAG, "OUT OF RANGE: Setting next upload time to: " + nextUploadTime + " ms.");
+                log.debug("OUT OF RANGE: Setting next upload time to {} ms.", nextUploadTime);
             }
 
             if (Minutes.minutesBetween(new DateTime(), new DateTime(responseDisplayTime))
                     .isGreaterThan(Minutes.minutes(20))) {
-                Log.w(TAG, "Receiver time is off by 20 minutes or more.");
+                log.warn("Receiver time is off by 20 minutes or more.");
                 mTracker.send(new HitBuilders.EventBuilder("Main", "Time difference > 20 minutes").build());
                 statusBarIcons.setTimeIndicator(false);
             } else {
@@ -438,7 +447,7 @@ public class MainActivity extends Activity {
                     break;
                 case UsbManager.ACTION_USB_DEVICE_ATTACHED:
                     statusBarIcons.setUSB(true);
-                    Log.d(TAG, "Starting syncing on USB attached...");
+                    log.debug("Starting syncing on USB attached...");
                     SyncingService.startActionSingleSync(mContext, SyncingService.MIN_SYNC_PAGES);
                     break;
                 case Intent.ACTION_BATTERY_CHANGED:
@@ -461,7 +470,8 @@ public class MainActivity extends Activity {
         public void run() {
             long delta = new Date().getTime() - lastRecordTime + receiverOffsetFromUploader;
             if (lastRecordTime == 0) delta = 0;
-            String timeAgoStr = "";
+
+            String timeAgoStr;
             if (lastRecordTime == -1) {
                 timeAgoStr = "---";
             } else if (delta < 0) {
@@ -477,7 +487,6 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu, menu);
         return true;
     }
@@ -489,22 +498,7 @@ public class MainActivity extends Activity {
             Intent intent = new Intent(this, SettingsActivity.class);
             startActivity(intent);
         } else if (id == R.id.feedback_settings) {
-            ACRAConfiguration acraConfiguration = ACRA.getConfig();
-            // Set to dialog to get user comments
-            try {
-                acraConfiguration.setMode(ReportingInteractionMode.DIALOG);
-                acraConfiguration.setResToastText(0);
-            } catch (ACRAConfigurationException e) {
-                e.printStackTrace();
-            }
-            ACRA.getErrorReporter().handleException(null);
-            // Reset back to toast
-            try {
-                acraConfiguration.setResToastText(R.string.crash_toast_text);
-                acraConfiguration.setMode(ReportingInteractionMode.TOAST);
-            } catch (ACRAConfigurationException e) {
-                e.printStackTrace();
-            }
+            reporter.reportFeedback();
         } else if (id == R.id.gap_sync) {
             SyncingService.startActionSingleSync(getApplicationContext(), SyncingService.GAP_SYNC_PAGES);
         } else if (id == R.id.close_settings) {
@@ -515,31 +509,29 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-    public class StatusBarIcons {
-        private ImageView mImageViewUSB;
-        private ImageView mImageViewUpload;
-        private ImageView mImageViewTimeIndicator;
-        private ImageView mImageRcvrBattery;
-        private TextView mRcvrBatteryLabel;
+    public static class StatusBarIcons extends Fragment {
+        @InjectView(R.id.imageViewUSB) ImageView mImageViewUSB;
+        @InjectView(R.id.imageViewUploadStatus) ImageView mImageViewUpload;
+        @InjectView(R.id.imageViewTimeIndicator) ImageView mImageViewTimeIndicator;
+        @InjectView(R.id.imageViewRcvrBattery) ImageView mImageRcvrBattery;
+        @InjectView(R.id.rcvrBatteryLabel) TextView mRcvrBatteryLabel;
+
         private boolean usbActive;
         private boolean uploadActive;
         private boolean displayTimeSync;
         private int batteryLevel;
 
-        StatusBarIcons() {
-            mImageViewUSB = (ImageView) findViewById(R.id.imageViewUSB);
-            mImageViewUpload = (ImageView) findViewById(R.id.imageViewUploadStatus);
-            mImageViewTimeIndicator = (ImageView) findViewById(R.id.imageViewTimeIndicator);
-
-            mImageRcvrBattery = (ImageView) findViewById(R.id.imageViewRcvrBattery);
-            mImageRcvrBattery.setImageResource(R.drawable.battery);
-            mRcvrBatteryLabel = (TextView) findViewById(R.id.rcvrBatteryLabel);
-
+        @Override
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+            View view = inflater.inflate(R.layout.fragment_icon_status, container, false);
+            ButterKnife.inject(this, view);
             setDefaults();
+            return view;
         }
 
         public void checkForRootOptionChanged() {
-            if (((AndroidPreferences) preferences).isRootEnabled()) {
+            if (!PreferenceManager.getDefaultSharedPreferences(
+                    getActivity()).getBoolean(PreferenceKeys.ROOT_ENABLED, false)) {
                 mImageRcvrBattery.setVisibility(View.GONE);
                 mRcvrBatteryLabel.setVisibility(View.GONE);
             } else {
@@ -547,7 +539,6 @@ public class MainActivity extends Activity {
                 mRcvrBatteryLabel.setVisibility(View.VISIBLE);
             }
         }
-
 
         public void setDefaults() {
             setUSB(false);
